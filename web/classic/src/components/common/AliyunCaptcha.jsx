@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useMemo,
@@ -128,9 +129,17 @@ const AliyunCaptcha = forwardRef(function AliyunCaptcha(
         width: 360,
         height: 40,
       },
+      delayBeforeSuccess: false,
     });
     initializedSceneRef.current = sceneId;
   }, [enabled, prefix, region, sceneId, elementSelector, buttonSelector]);
+
+  // 组件挂载时立即加载 SDK 并初始化
+  useEffect(() => {
+    if (enabled && prefix && sceneId) {
+      initialize();
+    }
+  }, [initialize, enabled, prefix, sceneId]);
 
   useImperativeHandle(
     ref,
@@ -142,7 +151,7 @@ const AliyunCaptcha = forwardRef(function AliyunCaptcha(
           return await new Promise((resolve, reject) => {
             pendingResolveRef.current = resolve;
             pendingRejectRef.current = reject;
-            document.querySelector(buttonSelector)?.click();
+            instanceRef.current?.show?.();
           });
         } catch (error) {
           const message =

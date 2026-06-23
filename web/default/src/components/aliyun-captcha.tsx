@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { forwardRef, useCallback, useImperativeHandle, useId, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useId, useRef } from 'react'
 
 declare global {
   interface Window {
@@ -29,6 +29,8 @@ declare global {
 }
 
 interface AliyunCaptchaInstance {
+  show?: () => void
+  hide?: () => void
   refresh?: () => void
 }
 
@@ -45,6 +47,7 @@ interface AliyunCaptchaOptions {
     width: number
     height: number
   }
+  delayBeforeSuccess?: boolean
 }
 
 export interface AliyunCaptchaHandle {
@@ -145,9 +148,18 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
           width: 360,
           height: 40,
         },
+        delayBeforeSuccess: false,
       })
       initializedSceneRef.current = sceneId
     }, [buttonId, elementId, enabled, prefix, region, sceneId])
+
+    // 组件挂载时立即加载 SDK 并初始化（文档要求前置加载，
+    // 使 SDK 有充足时间采集设备指纹和预加载验证码资源）
+    useEffect(() => {
+      if (enabled && prefix && sceneId) {
+        initialize()
+      }
+    }, [initialize, enabled, prefix, sceneId])
 
     useImperativeHandle(
       ref,
@@ -159,7 +171,7 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
             return await new Promise<string>((resolve, reject) => {
               pendingResolveRef.current = resolve
               pendingRejectRef.current = reject
-              document.getElementById(buttonId)?.click()
+              instanceRef.current?.show?.()
             })
           } catch (error) {
             const message = error instanceof Error ? error.message : '人机验证初始化失败'
