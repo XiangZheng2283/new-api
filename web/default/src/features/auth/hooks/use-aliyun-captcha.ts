@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useStatus } from '@/hooks/use-status'
+import { useTranslation } from 'react-i18next'
+import type { CaptchaType } from '@/components/aliyun-captcha'
 
 export type AliyunCaptchaScene =
   | 'login'
@@ -31,10 +33,13 @@ interface AliyunCaptchaConfig {
   region: string
   prefix: string
   sceneId: string
+  captchaType: CaptchaType | ''
+  language: string
 }
 
 export function useAliyunCaptcha(scene: AliyunCaptchaScene): AliyunCaptchaConfig {
   const { status } = useStatus()
+  const { i18n } = useTranslation()
 
   return useMemo(() => {
     const statusData = status?.data as Record<string, unknown> | undefined
@@ -47,11 +52,25 @@ export function useAliyunCaptcha(scene: AliyunCaptchaScene): AliyunCaptchaConfig
       {}) as Record<string, string>
     const sceneId = scenes[scene] ?? ''
 
+    // 读取该场景对应的验证码形态
+    const captchaTypes = (status?.esa_captcha_types ??
+      statusData?.esa_captcha_types ??
+      {}) as Record<string, string>
+    const rawCaptchaType = captchaTypes[scene] ?? ''
+
+    // 确保 captchaType 是合法值，否则为空字符串
+    const validTypes: CaptchaType[] = ['smart', 'instant', 'slide', 'puzzle', 'recovery']
+    const captchaType: CaptchaType | '' = validTypes.includes(rawCaptchaType)
+      ? (rawCaptchaType as CaptchaType)
+      : ''
+
     return {
       enabled: esaCaptchaEnabled && Boolean(prefix) && Boolean(sceneId),
       region: String(status?.esa_region ?? statusData?.esa_region ?? 'cn'),
       prefix,
       sceneId,
+      captchaType,
+      language: i18n.language,
     }
-  }, [scene, status])
+  }, [scene, status, i18n.language])
 }

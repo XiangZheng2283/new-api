@@ -81,6 +81,9 @@ export function DeleteAccountDialog({
 
       const response = await deleteUserAccount(undefined, captchaVerifyParam)
 
+      // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
+      captchaRef.current?.refresh()
+
       if (response.success) {
         toast.success(t('Account deleted successfully'))
 
@@ -99,6 +102,7 @@ export function DeleteAccountDialog({
       }
     } catch (_error) {
       toast.error(t('Failed to delete account'))
+      captchaRef.current?.refresh()
     } finally {
       setLoading(false)
     }
@@ -114,16 +118,7 @@ export function DeleteAccountDialog({
   }
 
   return (
-    <>
-      <AliyunCaptcha
-        ref={captchaRef}
-        enabled={captchaConfig.enabled}
-        region={captchaConfig.region}
-        prefix={captchaConfig.prefix}
-        sceneId={captchaConfig.sceneId}
-      />
-
-      <Dialog
+    <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       title={
@@ -150,6 +145,7 @@ export function DeleteAccountDialog({
             {t('Cancel')}
           </Button>
           <Button
+            id='delete-account-button'
             type='button'
             variant='destructive'
             onClick={handleDelete}
@@ -183,8 +179,21 @@ export function DeleteAccountDialog({
             autoComplete='off'
           />
         </div>
+
+        {/* Aliyun ESA captcha — embed 模式放在确认输入框下方、Delete 按钮上方 */}
+        {captchaConfig.enabled && (
+          <AliyunCaptcha
+            ref={captchaRef}
+            enabled={captchaConfig.enabled}
+            region={captchaConfig.region}
+            prefix={captchaConfig.prefix}
+            sceneId={captchaConfig.sceneId}
+            captchaType={captchaConfig.captchaType}
+            targetButtonId='delete-account-button'
+            language={captchaConfig.language}
+          />
+        )}
       </div>
     </Dialog>
-    </>
   )
 }

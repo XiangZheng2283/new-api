@@ -69,6 +69,8 @@ export function ForgotPasswordForm({
         ? await aliyunCaptchaRef.current?.execute()
         : ''
       const res = await sendPasswordResetEmail(data.email, captchaVerifyParam)
+      // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
+      aliyunCaptchaRef.current?.refresh()
       if (res?.success) {
         form.reset()
         startCountdown()
@@ -78,6 +80,7 @@ export function ForgotPasswordForm({
       }
     } catch (_error) {
       // Errors are handled by global interceptor
+      aliyunCaptchaRef.current?.refresh()
     } finally {
       setIsLoading(false)
     }
@@ -104,17 +107,7 @@ export function ForgotPasswordForm({
           )}
         />
 
-        <Button
-          type='submit'
-          className='mt-2'
-          disabled={isLoading || isActive}
-        >
-          {isActive
-            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-            : t('Send reset email')}
-          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
-        </Button>
-
+        {/* Aliyun ESA captcha — embed 模式放在按钮上方，popup/无痕模式隐藏 */}
         {resetPasswordCaptcha.enabled && (
           <AliyunCaptcha
             ref={aliyunCaptchaRef}
@@ -122,10 +115,24 @@ export function ForgotPasswordForm({
             region={resetPasswordCaptcha.region}
             prefix={resetPasswordCaptcha.prefix}
             sceneId={resetPasswordCaptcha.sceneId}
-            className='mt-2'
-            onError={(message) => toast.error(t(message))}
+            captchaType={resetPasswordCaptcha.captchaType}
+            targetButtonId='send-reset-email-button'
+            language={resetPasswordCaptcha.language}
           />
         )}
+
+        <Button
+          id='send-reset-email-button'
+          type={resetPasswordCaptcha.enabled ? 'button' : 'submit'}
+          className='mt-2'
+          disabled={isLoading || isActive}
+          {...(resetPasswordCaptcha.enabled ? { onClick: () => { form.handleSubmit(onSubmit)() } } : {})}
+        >
+          {isActive
+            ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+            : t('Send reset email')}
+          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
+        </Button>
       </form>
     </Form>
   )

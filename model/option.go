@@ -137,6 +137,11 @@ func InitOptionMap() {
 	common.OptionMap["ESACaptchaDeleteAccountSceneId"] = common.ESACaptchaDeleteAccountSceneId
 	common.OptionMap["ESACaptchaCheckinSceneId"] = common.ESACaptchaCheckinSceneId
 	common.OptionMap["ESACaptchaVerificationSceneId"] = common.ESACaptchaVerificationSceneId
+	common.OptionMap["ESACaptchaLoginCaptchaType"] = common.ESACaptchaLoginCaptchaType
+	common.OptionMap["ESACaptchaResetPasswordCaptchaType"] = common.ESACaptchaResetPasswordCaptchaType
+	common.OptionMap["ESACaptchaDeleteAccountCaptchaType"] = common.ESACaptchaDeleteAccountCaptchaType
+	common.OptionMap["ESACaptchaCheckinCaptchaType"] = common.ESACaptchaCheckinCaptchaType
+	common.OptionMap["ESACaptchaVerificationCaptchaType"] = common.ESACaptchaVerificationCaptchaType
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
@@ -521,6 +526,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.ESACaptchaCheckinSceneId = value
 	case "ESACaptchaVerificationSceneId":
 		common.ESACaptchaVerificationSceneId = value
+	case "ESACaptchaLoginCaptchaType":
+		common.ESACaptchaLoginCaptchaType = value
+	case "ESACaptchaResetPasswordCaptchaType":
+		common.ESACaptchaResetPasswordCaptchaType = value
+	case "ESACaptchaDeleteAccountCaptchaType":
+		common.ESACaptchaDeleteAccountCaptchaType = value
+	case "ESACaptchaCheckinCaptchaType":
+		common.ESACaptchaCheckinCaptchaType = value
+	case "ESACaptchaVerificationCaptchaType":
+		common.ESACaptchaVerificationCaptchaType = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

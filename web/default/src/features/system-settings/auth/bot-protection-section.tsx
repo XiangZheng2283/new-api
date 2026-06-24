@@ -21,6 +21,7 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import {
   Form,
   FormControl,
@@ -31,6 +32,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import {
   SettingsForm,
@@ -40,6 +48,15 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+
+const captchaTypeOptions = [
+  { value: '', label: '未配置' },
+  { value: 'smart', label: '无痕验证' },
+  { value: 'instant', label: '一点即过' },
+  { value: 'slide', label: '滑块验证' },
+  { value: 'puzzle', label: '拼图验证' },
+  { value: 'recovery', label: '图像复原' },
+] as const
 
 const botProtectionSchema = z.object({
   ESACaptchaEnabled: z.boolean(),
@@ -51,6 +68,11 @@ const botProtectionSchema = z.object({
   ESACaptchaDeleteAccountSceneId: z.string().optional(),
   ESACaptchaCheckinSceneId: z.string().optional(),
   ESACaptchaVerificationSceneId: z.string().optional(),
+  ESACaptchaLoginCaptchaType: z.string().optional(),
+  ESACaptchaResetPasswordCaptchaType: z.string().optional(),
+  ESACaptchaDeleteAccountCaptchaType: z.string().optional(),
+  ESACaptchaCheckinCaptchaType: z.string().optional(),
+  ESACaptchaVerificationCaptchaType: z.string().optional(),
 })
 
 type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
@@ -60,12 +82,27 @@ type BotProtectionSectionProps = {
 }
 
 const sceneFields = [
-  ['ESACaptchaLoginSceneId', 'Login scene ID'],
-  ['ESACaptchaVerificationSceneId', 'Email verification scene ID'],
-  ['ESACaptchaResetPasswordSceneId', 'Password reset email scene ID'],
-  ['ESACaptchaDeleteAccountSceneId', 'Delete account scene ID'],
-  ['ESACaptchaCheckinSceneId', 'Check-in scene ID'],
+  { sceneIdKey: 'ESACaptchaLoginSceneId', captchaTypeKey: 'ESACaptchaLoginCaptchaType', label: 'Login' },
+  { sceneIdKey: 'ESACaptchaVerificationSceneId', captchaTypeKey: 'ESACaptchaVerificationCaptchaType', label: 'Email verification' },
+  { sceneIdKey: 'ESACaptchaResetPasswordSceneId', captchaTypeKey: 'ESACaptchaResetPasswordCaptchaType', label: 'Password reset email' },
+  { sceneIdKey: 'ESACaptchaDeleteAccountSceneId', captchaTypeKey: 'ESACaptchaDeleteAccountCaptchaType', label: 'Delete account' },
+  { sceneIdKey: 'ESACaptchaCheckinSceneId', captchaTypeKey: 'ESACaptchaCheckinCaptchaType', label: 'Check-in' },
 ] as const
+
+function getCaptchaTypeHint(captchaType: string): string | null {
+  switch (captchaType) {
+    case 'smart':
+      return '验证码将绑定到业务按钮（如登录按钮），用户点击按钮时触发无痕验证。'
+    case 'instant':
+    case 'slide':
+      return '验证码将嵌入到表单中按钮上方显示。'
+    case 'puzzle':
+    case 'recovery':
+      return '用户点击按钮时弹出验证码弹窗。'
+    default:
+      return null
+  }
+}
 
 export function BotProtectionSection({
   defaultValues,
@@ -88,9 +125,16 @@ export function BotProtectionSection({
         value !== defaultValues[key as keyof BotProtectionFormValues]
     )
 
+    if (updates.length === 0) {
+      toast.info(t('No changes to save'))
+      return
+    }
+
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({ key, value: value ?? '' })
     }
+
+    form.reset(data)
   }
 
   return (
@@ -170,21 +214,60 @@ export function BotProtectionSection({
             )}
           />
 
-          {sceneFields.map(([name, label]) => (
-            <FormField
-              key={name}
-              control={form.control}
-              name={name}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t(label)}</FormLabel>
-                  <FormControl>
-                    <Input autoComplete='off' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* Scene rows: each with SceneId input + CaptchaType select */}
+          {sceneFields.map(({ sceneIdKey, captchaTypeKey, label }) => (
+            <div key={sceneIdKey} className='space-y-3 rounded-lg border p-4'>
+              <h4 className='text-sm font-medium'>{t(label)}</h4>
+
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name={sceneIdKey}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Scene ID')}</FormLabel>
+                      <FormControl>
+                        <Input autoComplete='off' placeholder={t('Scene ID')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={captchaTypeKey}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Captcha type')}</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === '_none' ? '' : value)}
+                        value={field.value || '_none'}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('Select captcha type')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {captchaTypeOptions.map((option) => (
+                            <SelectItem key={option.value || '_none'} value={option.value || '_none'}>
+                              {t(option.label)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {getCaptchaTypeHint(field.value ?? '') && (
+                        <FormDescription>
+                          {t(getCaptchaTypeHint(field.value ?? '')!)}
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
           ))}
         </SettingsForm>
       </Form>

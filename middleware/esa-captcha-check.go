@@ -22,23 +22,34 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
 // ESACaptchaCheck 验证阿里云 ESA AI 验证码。
 //
+// 根据「阿里验证码接入文档.md」的说明，ESA 验证码的工作流程为：
+//
+//  1. 前端 SDK 弹出验证码 → 用户完成验证 → success 回调返回 captchaVerifyParam
+//  2. 前端将 captchaVerifyParam 随业务请求发送（URI 参数或 Header）
+//  3. ESA 边缘节点拦截请求，验签 captchaVerifyParam
+//  4. 验签通过后 ESA 将请求转发到后端，并在**响应头**中注入 X-Captcha-Verify-Code: T001
+//  5. 前端从响应头读取 X-Captcha-Verify-Code 判断验签结果
+//
 // 两种验证模式：
 //
-//  1. 严格模式（ESAStrictModeEnabled=true）：
-//     ESA 边缘节点在请求到达后端之前完成验签，验证通过后注入
-//     X-Captcha-Verify-Code: T001 请求头。后端只需检查该头即可。
-//     要求所有受保护请求必须经过 ESA 边缘节点。
+//  严格模式（ESAStrictModeEnabled=true）：
+//   - ESA 边缘节点在请求到达后端之前完成拦截和验签
+//   - 请求能到达后端 = 已通过 ESA 验签，后端直接放行
+//   - 如果 captchaVerifyParam 缺失或无效，ESA 边缘节点直接拦截返回错误，
+//     请求不会到达后端
+//   - 注意：X-Captcha-Verify-Code 是 ESA 注入到**响应头**中的（文档示例：
+//     result.headers.get('X-Captcha-Verify-Code')），不是请求头，后端无法
+//     从 c.GetHeader 中读取
 //
-//  2. 普通模式（ESAStrictModeEnabled=false，ESACaptchaEnabled=true）：
-//     前端 ESA SDK 弹窗验证通过后获得 captcha_verify_param 并随请求
-//     发送到后端。生产环境中 ESA 边缘节点透明验签并注入 X-Captcha-Verify-Code
-//     响应头；本地/无 ESA 边缘时校验参数非空。
+//  普通模式（ESAStrictModeEnabled=false，ESACaptchaEnabled=true）：
+//   - 生产环境：ESA 边缘节点透明验签，请求到达后端时 captcha_verify_param 已被验证
+//   - 本地/无 ESA 边缘：仅校验 captcha_verify_param 非空（前端 SDK 弹出验证码已确保真人操作）
+//   - 文档支持两种传递方式：URI 参数 或 Header 值
 func ESACaptchaCheck(scene string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !common.ESACaptchaEnabled {
@@ -52,42 +63,29 @@ func ESACaptchaCheck(scene string) gin.HandlerFunc {
 			return
 		}
 
-		session := sessions.Default(c)
-		sessionKey := "esa_captcha:" + scene + ":" + c.FullPath()
-		if session.Get(sessionKey) != nil {
+		// --- 严格模式：ESA 边缘节点已验签，请求能到达后端即说明通过 ---
+		// ESA 在请求到达后端之前完成拦截和验签：
+		//   - captchaVerifyParam 有效 → ESA 放行到后端
+		//   - captchaVerifyParam 缺失或无效 → ESA 直接拦截返回错误，请求不到达后端
+		// 因此后端无需做任何检查，直接放行。
+		//
+		// 注意：X-Captcha-Verify-Code 是 ESA 注入到响应头中的验签结果码
+		// （文档示例：const verify_code = result.headers.get('X-Captcha-Verify-Code')），
+		// 不是请求头，后端无法通过 c.GetHeader 读取。
+		if common.ESAStrictModeEnabled {
 			c.Next()
 			return
 		}
 
-		// --- 严格模式：依赖 ESA 边缘注入的头 ---
-		if common.ESAStrictModeEnabled {
-			if c.GetHeader("X-Captcha-Verify-Code") == "T001" {
-				session.Set(sessionKey, true)
-				if err := session.Save(); err != nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": "无法保存会话信息，请重试",
-					})
-					c.Abort()
-					return
-				}
-				c.Next()
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "人机验证未通过，请刷新页面后重试",
-			})
-			c.Abort()
-			return
-		}
-
 		// --- 普通模式：前端 ESA SDK 已完成人机验证 ---
-		// 验证通过后前端获得 captcha_verify_param，由 ESA 边缘节点在请求到达后端
-		// 之前透明验签并注入 X-Captcha-Verify-Code: T001 响应头。
+		// 验证通过后前端获得 captcha_verify_param，随请求发送到后端。
+		// 生产环境中 ESA 边缘节点透明验签并在响应头中注入 X-Captcha-Verify-Code: T001。
 		// 本地/无 ESA 边缘时，仅校验参数非空（前端 SDK 弹出验证码已确保真人操作）。
+		// 文档支持两种传递方式：URI 参数 或 Header 值
 		captchaVerifyParam := c.Query("captcha_verify_param")
+		if captchaVerifyParam == "" {
+			captchaVerifyParam = c.GetHeader("captcha-verify-param")
+		}
 		if captchaVerifyParam == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -97,15 +95,6 @@ func ESACaptchaCheck(scene string) gin.HandlerFunc {
 			return
 		}
 
-		session.Set(sessionKey, true)
-		if err := session.Save(); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法保存会话信息，请重试",
-			})
-			c.Abort()
-			return
-		}
 		c.Next()
 	}
 }

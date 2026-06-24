@@ -82,6 +82,13 @@ func GetStatus(c *gin.Context) {
 			"checkin":        common.ESACaptchaCheckinSceneId,
 			"verification":   common.ESACaptchaVerificationSceneId,
 		},
+		"esa_captcha_types": gin.H{
+			"login":          common.ESACaptchaLoginCaptchaType,
+			"reset_password": common.ESACaptchaResetPasswordCaptchaType,
+			"delete_account": common.ESACaptchaDeleteAccountCaptchaType,
+			"checkin":        common.ESACaptchaCheckinCaptchaType,
+			"verification":   common.ESACaptchaVerificationCaptchaType,
+		},
 		"docs_link":      operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit": common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type

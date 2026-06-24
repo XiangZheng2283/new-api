@@ -149,6 +149,13 @@ var ESACaptchaDeleteAccountSceneId = ""  // 删除账户场景
 var ESACaptchaCheckinSceneId = ""        // 签到场景
 var ESACaptchaVerificationSceneId = ""   // 发送邮箱验证码场景
 
+// ESA 验证码形态："" (未配置), "smart" (无痕), "instant" (一点即过), "slide" (滑块), "puzzle" (拼图), "recovery" (图像复原)
+var ESACaptchaLoginCaptchaType = ""
+var ESACaptchaResetPasswordCaptchaType = ""
+var ESACaptchaDeleteAccountCaptchaType = ""
+var ESACaptchaCheckinCaptchaType = ""
+var ESACaptchaVerificationCaptchaType = ""
+
 var TelegramBotToken = ""
 var TelegramBotName = ""
 

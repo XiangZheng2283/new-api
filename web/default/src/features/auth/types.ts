@@ -116,6 +116,7 @@ export interface SystemStatus {
     esa_region?: string
     esa_prefix?: string
     esa_captcha_scenes?: Record<string, string>
+    esa_captcha_types?: Record<string, string>
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -164,6 +165,7 @@ export interface SystemStatus {
   esa_region?: string
   esa_prefix?: string
   esa_captcha_scenes?: Record<string, string>
+  esa_captcha_types?: Record<string, string>
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean

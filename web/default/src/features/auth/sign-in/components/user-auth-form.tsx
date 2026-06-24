@@ -163,8 +163,11 @@ export function UserAuthForm({
         await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Welcome back!'))
       }
+      // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
+      aliyunCaptchaRef.current?.refresh()
     } catch (_error) {
       // Errors are handled by global interceptor
+      aliyunCaptchaRef.current?.refresh()
     } finally {
       setIsLoading(false)
     }
@@ -368,17 +371,7 @@ export function UserAuthForm({
               )}
             />
 
-            {/* Submit Button */}
-            <Button
-              type='submit'
-              className='mt-2 w-full justify-center gap-2'
-              disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-            >
-              {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-              {t('Sign in')}
-            </Button>
-
-            {/* Aliyun captcha */}
+            {/* Aliyun ESA captcha — embed 模式放在按钮上方，popup/无痕模式隐藏 */}
             {loginCaptcha.enabled && (
               <AliyunCaptcha
                 ref={aliyunCaptchaRef}
@@ -386,10 +379,24 @@ export function UserAuthForm({
                 region={loginCaptcha.region}
                 prefix={loginCaptcha.prefix}
                 sceneId={loginCaptcha.sceneId}
-                className='mt-2'
-                onError={(message) => toast.error(t(message))}
+                captchaType={loginCaptcha.captchaType}
+                targetButtonId='sign-in-button'
+                language={loginCaptcha.language}
               />
             )}
+
+            {/* Submit / Verify Button */}
+            {/* ESA captcha 启用时用 type="button" 防止 form submit 和 SDK button 绑定冲突 */}
+            <Button
+              id='sign-in-button'
+              type={loginCaptcha.enabled ? 'button' : 'submit'}
+              className='mt-2 w-full justify-center gap-2'
+              disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+              {...(loginCaptcha.enabled ? { onClick: () => { form.handleSubmit(onSubmit)() } } : {})}
+            >
+              {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
+              {t('Sign in')}
+            </Button>
           </>
         )}
 

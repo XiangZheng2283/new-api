@@ -131,6 +131,8 @@ export function CheckinCalendarCard({
       setCheckinLoading(true)
       try {
         const res = await performCheckin(captchaVerifyParam)
+        // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
+        captchaRef.current?.refresh()
         if (res.success && res.data) {
           toast.success(
             `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
@@ -141,6 +143,7 @@ export function CheckinCalendarCard({
         }
       } catch (_error) {
         toast.error(t('Check-in failed'))
+        captchaRef.current?.refresh()
       } finally {
         setCheckinLoading(false)
       }
@@ -236,14 +239,6 @@ export function CheckinCalendarCard({
 
   return (
     <TooltipProvider delay={100}>
-      <AliyunCaptcha
-        ref={captchaRef}
-        enabled={esaCaptchaEnabled && captchaConfig.enabled}
-        region={captchaConfig.region}
-        prefix={captchaConfig.prefix}
-        sceneId={captchaConfig.sceneId}
-      />
-
       <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         {/* Header */}
         <div className='border-b p-4 sm:p-6'>
@@ -285,18 +280,36 @@ export function CheckinCalendarCard({
                 </p>
               </div>
             </button>
-            <Button
-              onClick={handleCheckin}
-              disabled={checkinLoading || checkedToday}
-              size='sm'
-              className='w-full shrink-0 sm:w-auto'
-            >
-              {checkinLoading
-                ? t('Loading...')
-                : checkedToday
-                  ? t('Checked in')
-                  : t('Check in now')}
-            </Button>
+
+            <div className='flex w-full flex-col gap-2 sm:w-auto'>
+              {/* Aliyun ESA captcha — embed 模式放在签到按钮上方 */}
+              {esaCaptchaEnabled && captchaConfig.enabled && (
+                <AliyunCaptcha
+                  ref={captchaRef}
+                  enabled={esaCaptchaEnabled && captchaConfig.enabled}
+                  region={captchaConfig.region}
+                  prefix={captchaConfig.prefix}
+                  sceneId={captchaConfig.sceneId}
+                  captchaType={captchaConfig.captchaType}
+                  targetButtonId='checkin-now-button'
+                  language={captchaConfig.language}
+                />
+              )}
+              <Button
+                id='checkin-now-button'
+                type='button'
+                onClick={handleCheckin}
+                disabled={checkinLoading || checkedToday}
+                size='sm'
+                className='w-full shrink-0 sm:w-auto'
+              >
+                {checkinLoading
+                  ? t('Loading...')
+                  : checkedToday
+                    ? t('Checked in')
+                    : t('Check in now')}
+              </Button>
+            </div>
           </div>
         </div>
 

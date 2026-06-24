@@ -129,6 +129,18 @@ func InitEnv() {
 
 	ESACaptchaEnabled = GetEnvOrDefaultBool("ESA_CAPTCHA_ENABLED", false)
 	ESAStrictModeEnabled = GetEnvOrDefaultBool("ESA_STRICT_MODE_ENABLED", false)
+	ESARegion = GetEnvOrDefaultString("ESA_REGION", "cn")
+	ESAPrefix = GetEnvOrDefaultString("ESA_PREFIX", "")
+	ESACaptchaLoginSceneId = GetEnvOrDefaultString("ESA_CAPTCHA_LOGIN_SCENE_ID", "")
+	ESACaptchaResetPasswordSceneId = GetEnvOrDefaultString("ESA_CAPTCHA_RESET_PASSWORD_SCENE_ID", "")
+	ESACaptchaDeleteAccountSceneId = GetEnvOrDefaultString("ESA_CAPTCHA_DELETE_ACCOUNT_SCENE_ID", "")
+	ESACaptchaCheckinSceneId = GetEnvOrDefaultString("ESA_CAPTCHA_CHECKIN_SCENE_ID", "")
+	ESACaptchaVerificationSceneId = GetEnvOrDefaultString("ESA_CAPTCHA_VERIFICATION_SCENE_ID", "")
+	ESACaptchaLoginCaptchaType = GetEnvOrDefaultString("ESA_CAPTCHA_LOGIN_TYPE", "")
+	ESACaptchaVerificationCaptchaType = GetEnvOrDefaultString("ESA_CAPTCHA_VERIFICATION_TYPE", "")
+	ESACaptchaResetPasswordCaptchaType = GetEnvOrDefaultString("ESA_CAPTCHA_RESET_PASSWORD_TYPE", "")
+	ESACaptchaDeleteAccountCaptchaType = GetEnvOrDefaultString("ESA_CAPTCHA_DELETE_ACCOUNT_TYPE", "")
+	ESACaptchaCheckinCaptchaType = GetEnvOrDefaultString("ESA_CAPTCHA_CHECKIN_TYPE", "")
 	initConstantEnv()
 }
 

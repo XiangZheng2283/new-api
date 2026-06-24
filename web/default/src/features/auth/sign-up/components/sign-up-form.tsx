@@ -173,6 +173,9 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
+    // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
+    // 注意：refresh 必须在 sendCode（包含 API 请求）完成之后调用
+    aliyunCaptchaRef.current?.refresh()
   }
 
   const handleOpenWeChatDialog = () => {
@@ -295,6 +298,20 @@ export function SignUpForm({
               )}
             />
 
+            {/* Aliyun ESA captcha for sending email verification code — embed 放在邮箱框下方 */}
+            {verificationCaptcha.enabled && (
+              <AliyunCaptcha
+                ref={aliyunCaptchaRef}
+                enabled={verificationCaptcha.enabled}
+                region={verificationCaptcha.region}
+                prefix={verificationCaptcha.prefix}
+                sceneId={verificationCaptcha.sceneId}
+                captchaType={verificationCaptcha.captchaType}
+                targetButtonId='send-code-button'
+                language={verificationCaptcha.language}
+              />
+            )}
+
             {/* Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
@@ -305,6 +322,7 @@ export function SignUpForm({
                 />
               </div>
               <Button
+                id='send-code-button'
                 variant='outline'
                 type='button'
                 disabled={
@@ -325,19 +343,6 @@ export function SignUpForm({
               </Button>
             </div>
           </>
-        )}
-
-        {/* Aliyun captcha for sending email verification code */}
-        {verificationCaptcha.enabled && (
-          <AliyunCaptcha
-            ref={aliyunCaptchaRef}
-            enabled={verificationCaptcha.enabled}
-            region={verificationCaptcha.region}
-            prefix={verificationCaptcha.prefix}
-            sceneId={verificationCaptcha.sceneId}
-            className='mt-2'
-            onError={(message) => toast.error(t(message))}
-          />
         )}
 
         <LegalConsent

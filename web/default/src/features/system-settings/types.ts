@@ -112,6 +112,11 @@ export type AuthSettings = {
   ESACaptchaDeleteAccountSceneId: string
   ESACaptchaCheckinSceneId: string
   ESACaptchaVerificationSceneId: string
+  ESACaptchaLoginCaptchaType: string
+  ESACaptchaResetPasswordCaptchaType: string
+  ESACaptchaDeleteAccountCaptchaType: string
+  ESACaptchaCheckinCaptchaType: string
+  ESACaptchaVerificationCaptchaType: string
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
