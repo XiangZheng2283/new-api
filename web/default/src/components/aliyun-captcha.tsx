@@ -51,7 +51,11 @@ interface AliyunCaptchaOptions {
     height: number
   }
   language?: string
+  timeout?: number
   delayBeforeSuccess?: boolean
+  onError?: (errorInfo: { code: string; msg: string }) => void
+  onClose?: () => void
+  showErrorTip?: boolean
 }
 
 export interface AliyunCaptchaHandle {
@@ -86,28 +90,31 @@ function getSdkMode(captchaType: CaptchaType | ''): 'popup' | 'embed' {
   return captchaType === 'slide' || captchaType === 'instant' ? 'embed' : 'popup'
 }
 
-/** 是否为无痕验证 */
-function isSmartCaptcha(captchaType: CaptchaType | ''): boolean {
-  return captchaType === 'smart'
-}
-
 /**
  * 将前端 i18n 语言映射为阿里验证码 SDK language 参数
  * SDK 支持值：cn/tw/en/ar/de/es/fr/in/it/ja/ko/pt/ru/ms/th/tr/vi
  */
 function mapLanguage(i18nLang?: string): string {
   if (!i18nLang) return 'cn'
-  // 提取主语言子标签：'en-US' → 'en', 'zh-Hans-CN' → 'zh'
   const primary = i18nLang.split(/[-_]/)[0].toLowerCase()
   const mapping: Record<string, string> = {
     zh: 'cn', en: 'en', ar: 'ar', de: 'de', es: 'es', fr: 'fr',
     id: 'in', it: 'it', ja: 'ja', ko: 'ko', pt: 'pt',
     ru: 'ru', ms: 'ms', th: 'th', tr: 'tr', vi: 'vi',
   }
-  // 先尝试完整匹配（处理 zh-tw 等），再尝试主语言子标签
   const lower = i18nLang.toLowerCase()
   if (lower === 'zh-tw' || lower === 'zh-hant') return 'tw'
   return mapping[primary] ?? 'cn'
+}
+
+/** 从 SDK fail 回调的 unknown 结果中提取错误信息 */
+function extractFailMessage(result: unknown): string {
+  if (result instanceof Error) return result.message
+  if (typeof result === 'object' && result !== null && 'msg' in result) {
+    return String((result as { msg: unknown }).msg) || '人机验证未通过，请重试'
+  }
+  if (typeof result === 'string') return result
+  return '人机验证未通过，请重试'
 }
 
 let aliyunCaptchaScriptPromise: Promise<void> | null = null
@@ -141,6 +148,11 @@ function loadAliyunCaptchaScript(): Promise<void> {
   return aliyunCaptchaScriptPromise
 }
 
+/** SDK 回调缓存：当 SDK button 绑定先于 React onClick 触发回调时，缓存结果供 execute() 取用 */
+type CachedResult =
+  | { type: 'success'; param: string }
+  | { type: 'fail'; error: Error }
+
 export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>(
   function AliyunCaptcha(
     { enabled, region, prefix, sceneId, captchaType, targetButtonId, language, className, onError },
@@ -149,31 +161,72 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
     const reactId = useId().replace(/:/g, '')
     const elementId = `aliyun-captcha-element-${reactId}`
     const instanceRef = useRef<AliyunCaptchaInstance | null>(null)
-    // 记录已初始化的配置指纹（sceneId + mode + button），任一变化都需要重新初始化
     const initializedFingerprintRef = useRef('')
-    // Promise resolve/reject — success/fail 回调通过此机制传递验证结果给 execute() 调用者
     const pendingResolveRef = useRef<((captchaVerifyParam: string) => void) | null>(null)
     const pendingRejectRef = useRef<((error: Error) => void) | null>(null)
+    const pendingVerifyRef = useRef(false)
+    // SDK 回调缓存：smart 模式下 SDK button 绑定先于 React onClick 触发时使用
+    const cachedResultRef = useRef<CachedResult | null>(null)
+
+    // onError ref：避免 inline arrow function 导致 initialize useCallback 不稳定
+    const onErrorRef = useRef(onError)
+    onErrorRef.current = onError
 
     const sdkMode = getSdkMode(captchaType)
-    const smart = isSmartCaptcha(captchaType)
     const isEmbedMode = sdkMode === 'embed'
 
     // embed 模式下验证码组件的显隐状态
     // 初始隐藏 → execute() 时显示 → success 后隐藏 → fail 后保持可见让用户重试
     const [embedVisible, setEmbedVisible] = useState(false)
 
-    // button 指向业务按钮（文档：触发验证码弹窗或无痕验证的元素）
-    const sdkButtonSelector = `#${targetButtonId}`
+    // SDK button 选择器：指向真实业务按钮
+    // 文档：button — 触发验证码弹窗或无痕验证的元素，点击后弹出验证码或触发无痕验证
+    const buttonSelector = `#${targetButtonId}`
+
+    /** 通用：resolve pending promise 或缓存结果 */
+    const resolvePending = useCallback((captchaVerifyParam: string) => {
+      if (pendingResolveRef.current) {
+        pendingResolveRef.current(captchaVerifyParam)
+        pendingResolveRef.current = null
+        pendingRejectRef.current = null
+      } else {
+        // execute() 还没执行（SDK button 绑定先于 React onClick 触发），缓存结果
+        cachedResultRef.current = { type: 'success', param: captchaVerifyParam }
+      }
+    }, [])
+
+    /** 通用：reject pending promise 或缓存结果 */
+    const rejectPending = useCallback((error: Error) => {
+      if (pendingRejectRef.current) {
+        pendingRejectRef.current(error)
+        pendingResolveRef.current = null
+        pendingRejectRef.current = null
+      } else {
+        cachedResultRef.current = { type: 'fail', error }
+      }
+    }, [])
+
+    /** 通用：清理 pending 状态 */
+    const clearPending = useCallback(() => {
+      pendingVerifyRef.current = false
+      pendingResolveRef.current = null
+      pendingRejectRef.current = null
+      cachedResultRef.current = null
+    }, [])
 
     const initialize = useCallback(async () => {
       if (!enabled) return
       if (!prefix || !sceneId) {
         throw new Error('阿里验证码配置不完整')
       }
-      // 配置指纹：sceneId + mode + button + language，任一变化都需要重新初始化 SDK
-      const fingerprint = `${sceneId}:${sdkMode}:${sdkButtonSelector}:${mapLanguage(language)}`
+      const fingerprint = `${sceneId}:${sdkMode}:${buttonSelector}:${mapLanguage(language)}`
       if (initializedFingerprintRef.current === fingerprint) return
+
+      // 文档：initAliyunCaptcha 不支持重复调用（除非参数变化）
+      if (instanceRef.current) {
+        instanceRef.current.hide?.()
+        instanceRef.current = null
+      }
 
       window.AliyunCaptchaConfig = {
         region: region || 'cn',
@@ -188,40 +241,67 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
         SceneId: sceneId,
         mode: sdkMode,
         element: `#${elementId}`,
-        button: sdkButtonSelector,
+        button: buttonSelector,
         language: mapLanguage(language),
+        // 文档：timeout — 验证码初始化请求单次请求超时时间，默认5000ms
+        // 设为 10000 增加网络慢时的容错
+        timeout: 10000,
         success: (captchaVerifyParam: string) => {
           // success 回调：只传递验证参数，不做 refresh
           // 按文档验签示例，refresh 在业务请求完成后调用
+          if (import.meta.env.DEV) {
+            console.log('[Captcha] SDK success callback, param length:', captchaVerifyParam.length, 'pendingResolve:', !!pendingResolveRef.current)
+          }
           if (isEmbedMode) {
             setEmbedVisible(false)
           }
-          pendingResolveRef.current?.(captchaVerifyParam)
-          pendingResolveRef.current = null
-          pendingRejectRef.current = null
+          pendingVerifyRef.current = false
+          resolvePending(captchaVerifyParam)
         },
         fail: (result: unknown) => {
           // 文档：SDK 自动刷新验证码，不需要手动操作
-          // embed 模式下不隐藏验证码，保持可见让用户重试 SDK 自动刷新后的验证码
-          const message = result instanceof Error ? result.message : '人机验证未通过，请重试'
-          pendingRejectRef.current?.(new Error(message))
-          pendingResolveRef.current = null
-          pendingRejectRef.current = null
+          // embed 模式下不隐藏验证码，保持可见让用户重试
+          if (import.meta.env.DEV) {
+            console.warn('[Captcha] SDK fail callback:', result)
+          }
+          const message = extractFailMessage(result)
+          pendingVerifyRef.current = false
+          rejectPending(new Error(message))
         },
         getInstance: (instance: AliyunCaptchaInstance) => {
           instanceRef.current = instance
         },
         server: ['captcha-esa-open.aliyuncs.com', 'captcha-esa-open-b.aliyuncs.com'],
-        // slideStyle 只适用于滑块和一点即过，不适用于拼图和图像复原
+        // 文档：slideStyle 只适用于滑块和一点即过，不适用于拼图和图像复原
         ...(isEmbedMode ? {
           slideStyle: { width: 360, height: 40 },
         } : {}),
-        delayBeforeSuccess: false,
+        // 文档：onError — 初始化接口请求和资源加载失败、超时的错误回调
+        onError: (errorInfo) => {
+          const message = `验证码初始化失败: ${errorInfo.msg} (${errorInfo.code})`
+          onErrorRef.current?.(message)
+          pendingVerifyRef.current = false
+          rejectPending(new Error(message))
+        },
+        // 文档：onClose — 验证码弹窗关闭时触发的回调函数
+        // 用户关闭弹窗时 reject pending promise，防止 Promise 永远挂起
+        onClose: () => {
+          pendingVerifyRef.current = false
+          rejectPending(new Error('用户关闭验证码'))
+        },
+        // 文档：delayBeforeSuccess 默认 true — 验证成功后延迟1s触发success回调
+        // 使用默认值 true，让 embed 模式下 SDK 动画完成后再隐藏验证码
+        delayBeforeSuccess: true,
+        // 文档：showErrorTip 默认 true — 显示网络质量不佳时的错误提醒
+        showErrorTip: true,
       }
 
       window.initAliyunCaptcha(initOptions)
       initializedFingerprintRef.current = fingerprint
-    }, [sdkMode, sdkButtonSelector, elementId, enabled, prefix, region, sceneId, language, isEmbedMode])
+      if (import.meta.env.DEV) {
+        console.log('[Captcha] initAliyunCaptcha called', { SceneId: sceneId, mode: sdkMode, element: `#${elementId}`, button: buttonSelector, language: mapLanguage(language) })
+      }
+    }, [sdkMode, buttonSelector, elementId, enabled, prefix, region, sceneId, language, isEmbedMode, resolvePending, rejectPending])
 
     // 组件挂载时立即加载 SDK 并初始化
     // 文档：验证码JS加载尽量前置，初始化和验证请求间隔大于2s
@@ -231,37 +311,95 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
       }
     }, [initialize, enabled, prefix, sceneId, targetButtonId])
 
+    // 组件卸载时清理 SDK 实例，防止内存泄漏
+    useEffect(() => {
+      return () => {
+        if (instanceRef.current) {
+          instanceRef.current.hide?.()
+          instanceRef.current = null
+        }
+        initializedFingerprintRef.current = ''
+        if (pendingVerifyRef.current) {
+          pendingRejectRef.current?.(new Error('组件卸载'))
+          clearPending()
+        }
+      }
+    }, [clearPending])
+
     useImperativeHandle(
       ref,
       () => ({
         execute: async () => {
           if (!enabled) return ''
+          if (import.meta.env.DEV) {
+            console.log('[Captcha] execute() called', { captchaType, sdkMode, isEmbedMode, buttonSelector, instanceReady: !!instanceRef.current, fingerprint: initializedFingerprintRef.current })
+          }
           try {
-            // 先设置 pending resolve/reject，防止 SDK 的 success/fail 回调
-            // 在 execute() 设置 pending 之前触发（特别是 smart 模式下验证可能很快完成）
-            // 返回一个新的 Promise，resolve/reject 由 SDK 回调触发
+            // 防止重复触发：如果已有等待中的验证，直接返回空
+            if (pendingVerifyRef.current) {
+              if (import.meta.env.DEV) {
+                console.warn('[Captcha] execute() blocked: pendingVerifyRef is true (previous verification still in progress)')
+              }
+              return ''
+            }
+            pendingVerifyRef.current = true
+
+            // 先设置 pending resolve/reject
             const promise = new Promise<string>((resolve, reject) => {
               pendingResolveRef.current = resolve
               pendingRejectRef.current = reject
             })
 
+            // 检查是否有缓存的结果：
+            // smart 模式下 SDK button 绑定先于 React onClick 触发，
+            // SDK 的 success/fail 回调在 execute() 之前就已经执行，
+            // 此时 pending refs 为 null，回调会将结果缓存到 cachedResultRef
+            const cached = cachedResultRef.current
+            if (cached) {
+              cachedResultRef.current = null
+              pendingVerifyRef.current = false
+              if (import.meta.env.DEV) {
+                console.log('[Captcha] execute() using cached result:', cached.type, cached.type === 'success' ? cached.param.substring(0, 20) + '...' : cached.error.message)
+              }
+              if (cached.type === 'success') {
+                pendingResolveRef.current = null
+                pendingRejectRef.current = null
+                return cached.param
+              }
+              pendingResolveRef.current = null
+              pendingRejectRef.current = null
+              throw cached.error
+            }
+
+            // 确保 SDK 已初始化
             await initialize()
 
             // embed 模式（滑块/一点即过）：显示验证码容器，等待用户操作
-            // 注意：不在 execute() 中调用 refresh()，因为 SDK button 绑定也同时触发验证，
-            // refresh() 会重置正在进行的验证。refresh 由业务代码在请求完成后调用。
             if (isEmbedMode) {
               setEmbedVisible(true)
             }
 
-            // popup/smart/embed 模式：
-            // SDK 绑定了 button，用户点击按钮时 SDK 自动触发验证
-            // 不需要调 show()，因为 SDK 的 button 绑定已经触发了验证/弹窗
-            // 只需等待 promise 被 SDK 的 success/fail 回调 resolve/reject
-            return await promise
+            // popup/smart 模式：
+            // SDK 已绑定 button（真实业务按钮），用户点击该按钮时 SDK 自动触发验证
+            // React onClick 也同时触发，走到这里设置 pending refs 并等待 SDK 回调
+
+            // 添加超时保护：如果30秒内 SDK 回调未触发，reject promise 防止永远挂起
+            const timeoutPromise = new Promise<never>((_, reject) => {
+              setTimeout(() => {
+                if (pendingVerifyRef.current) {
+                  pendingVerifyRef.current = false
+                  pendingResolveRef.current = null
+                  pendingRejectRef.current = null
+                  reject(new Error('验证码超时，请重试'))
+                }
+              }, 30000)
+            })
+
+            return await Promise.race([promise, timeoutPromise])
           } catch (error) {
+            pendingVerifyRef.current = false
             const message = error instanceof Error ? error.message : '人机验证初始化失败'
-            onError?.(message)
+            onErrorRef.current?.(message)
             throw new Error(message)
           }
         },
@@ -270,7 +408,7 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
           instanceRef.current?.refresh?.()
         },
       }),
-      [enabled, initialize, onError, isEmbedMode, smart]
+      [enabled, initialize, isEmbedMode]
     )
 
     if (!enabled) return null
@@ -281,6 +419,7 @@ export const AliyunCaptcha = forwardRef<AliyunCaptchaHandle, AliyunCaptchaProps>
           element div 始终存在于 DOM（文档：预留验证码页面元素）
           - embed 模式：由 embedVisible 状态控制显隐
           - popup 模式：始终隐藏，SDK 在弹窗时自行管理渲染
+          - smart 模式：始终隐藏，无痕验证无 UI
         */}
         <div
           id={elementId}

@@ -278,6 +278,7 @@ export function ChangePasswordDialog({
               />
             </div>
             <Button
+              id='send-code-button-change-pwd'
               variant='outline'
               type='button'
               disabled={loading || isSendingCode || isActive || !hasEmail}
@@ -294,7 +295,7 @@ export function ChangePasswordDialog({
           </div>
         </div>
 
-        {/* Aliyun captcha for sending verification code */}
+        {/* Aliyun ESA captcha — embed 模式放在发送验证码按钮上方，popup/无痕模式隐藏 */}
         {verificationCaptcha.enabled && (
           <AliyunCaptcha
             ref={aliyunCaptchaRef}
@@ -302,6 +303,9 @@ export function ChangePasswordDialog({
             region={verificationCaptcha.region}
             prefix={verificationCaptcha.prefix}
             sceneId={verificationCaptcha.sceneId}
+            captchaType={verificationCaptcha.captchaType}
+            targetButtonId='send-code-button-change-pwd'
+            language={verificationCaptcha.language}
             className='mt-2'
             onError={(message) => toast.error(t(message))}
           />

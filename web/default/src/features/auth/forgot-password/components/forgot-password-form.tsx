@@ -63,11 +63,17 @@ export function ForgotPasswordForm({
   })
 
   async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
-    setIsLoading(true)
     try {
-      const captchaVerifyParam = resetPasswordCaptcha.enabled
-        ? await aliyunCaptchaRef.current?.execute()
-        : ''
+      // 先执行验证码，再设置 loading — 避免按钮 disabled 干扰 SDK button 绑定
+      let captchaVerifyParam = ''
+      if (resetPasswordCaptcha.enabled) {
+        captchaVerifyParam = await aliyunCaptchaRef.current?.execute() ?? ''
+        if (!captchaVerifyParam) {
+          // 验证码未完成（可能是用户取消或 SDK 初始化失败），不发送请求
+          return
+        }
+      }
+      setIsLoading(true)
       const res = await sendPasswordResetEmail(data.email, captchaVerifyParam)
       // 业务请求完成后 refresh 验证码，对齐阿里文档示例中的 captcha.refresh()
       aliyunCaptchaRef.current?.refresh()
@@ -126,7 +132,12 @@ export function ForgotPasswordForm({
           type={resetPasswordCaptcha.enabled ? 'button' : 'submit'}
           className='mt-2'
           disabled={isLoading || isActive}
-          {...(resetPasswordCaptcha.enabled ? { onClick: () => { form.handleSubmit(onSubmit)() } } : {})}
+          {...(resetPasswordCaptcha.enabled ? {
+            onClick: async () => {
+              const isValid = await form.trigger()
+              if (isValid) onSubmit(form.getValues())
+            }
+          } : {})}
         >
           {isActive
             ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })

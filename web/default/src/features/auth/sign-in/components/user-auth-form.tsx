@@ -143,11 +143,17 @@ export function UserAuthForm({
       return
     }
 
-    setIsLoading(true)
     try {
-      const captchaVerifyParam = loginCaptcha.enabled
-        ? await aliyunCaptchaRef.current?.execute()
-        : ''
+      // 先执行验证码，再设置 loading — 避免按钮 disabled 干扰 SDK button 绑定
+      let captchaVerifyParam = ''
+      if (loginCaptcha.enabled) {
+        captchaVerifyParam = await aliyunCaptchaRef.current?.execute() ?? ''
+        if (!captchaVerifyParam) {
+          // 验证码未完成（可能是用户取消或 SDK 初始化失败），不发送请求
+          return
+        }
+      }
+      setIsLoading(true)
       const res = await login({
         username: data.username,
         password: data.password,
@@ -387,12 +393,18 @@ export function UserAuthForm({
 
             {/* Submit / Verify Button */}
             {/* ESA captcha 启用时用 type="button" 防止 form submit 和 SDK button 绑定冲突 */}
+            {/* 使用 form.trigger() 代替 form.handleSubmit() 避免 React 事件系统和 SDK button 绑定的时序冲突 */}
             <Button
               id='sign-in-button'
               type={loginCaptcha.enabled ? 'button' : 'submit'}
               className='mt-2 w-full justify-center gap-2'
               disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-              {...(loginCaptcha.enabled ? { onClick: () => { form.handleSubmit(onSubmit)() } } : {})}
+              {...(loginCaptcha.enabled ? {
+                onClick: async () => {
+                  const isValid = await form.trigger()
+                  if (isValid) onSubmit(form.getValues())
+                }
+              } : {})}
             >
               {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
               {t('Sign in')}
