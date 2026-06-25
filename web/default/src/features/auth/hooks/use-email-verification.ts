@@ -25,6 +25,7 @@ import { EMAIL_VERIFICATION_COUNTDOWN } from '../constants'
 
 interface UseEmailVerificationOptions {
   getCaptchaVerifyParam?: () => Promise<string>
+  onCodeSent?: () => void
 }
 
 /**
@@ -55,6 +56,8 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
       const res = await sendEmailVerification(email, captchaVerifyParam)
       if (res?.success) {
         startCountdown()
+        // 通知消费侧刷新验证码状态
+        options?.onCodeSent?.()
         toast.success(i18next.t('Verification email sent'))
         return true
       }

@@ -19,14 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useStatus } from '@/hooks/use-status'
 import { useTranslation } from 'react-i18next'
+import { ESA_CAPTCHA_CONFIG, type AliyunCaptchaScene } from '@/config/esa-captcha'
 import type { CaptchaType } from '@/components/aliyun-captcha'
 
-export type AliyunCaptchaScene =
-  | 'login'
-  | 'reset_password'
-  | 'delete_account'
-  | 'checkin'
-  | 'verification'
+export type { AliyunCaptchaScene }
 
 interface AliyunCaptchaConfig {
   enabled: boolean
@@ -42,34 +38,22 @@ export function useAliyunCaptcha(scene: AliyunCaptchaScene): AliyunCaptchaConfig
   const { i18n } = useTranslation()
 
   return useMemo(() => {
-    const statusData = status?.data as Record<string, unknown> | undefined
+    // 后端仅提供全局开关
     const esaCaptchaEnabled = Boolean(
-      status?.esa_captcha_enabled ?? statusData?.esa_captcha_enabled
+      (status as Record<string, unknown>)?.esa_captcha_enabled ??
+      ((status as Record<string, unknown>)?.data as Record<string, unknown>)?.esa_captcha_enabled
     )
-    const prefix = String(status?.esa_prefix ?? statusData?.esa_prefix ?? '')
-    const scenes = (status?.esa_captcha_scenes ??
-      statusData?.esa_captcha_scenes ??
-      {}) as Record<string, string>
-    const sceneId = scenes[scene] ?? ''
 
-    // 读取该场景对应的验证码形态
-    const captchaTypes = (status?.esa_captcha_types ??
-      statusData?.esa_captcha_types ??
-      {}) as Record<string, string>
-    const rawCaptchaType = captchaTypes[scene] ?? ''
-
-    // 确保 captchaType 是合法值，否则为空字符串
-    const validTypes: CaptchaType[] = ['smart', 'instant', 'slide', 'puzzle', 'recovery']
-    const captchaType: CaptchaType | '' = validTypes.includes(rawCaptchaType)
-      ? (rawCaptchaType as CaptchaType)
-      : ''
+    // 其他配置全部来自硬编码配置文件
+    const sceneConfig = ESA_CAPTCHA_CONFIG.scenes[scene]
+    const enabled = esaCaptchaEnabled && Boolean(sceneConfig.sceneId)
 
     return {
-      enabled: esaCaptchaEnabled && Boolean(prefix) && Boolean(sceneId),
-      region: String(status?.esa_region ?? statusData?.esa_region ?? 'cn'),
-      prefix,
-      sceneId,
-      captchaType,
+      enabled,
+      region: ESA_CAPTCHA_CONFIG.region,
+      prefix: ESA_CAPTCHA_CONFIG.prefix,
+      sceneId: sceneConfig.sceneId,
+      captchaType: sceneConfig.captchaType as CaptchaType,
       language: i18n.language,
     }
   }, [scene, status, i18n.language])

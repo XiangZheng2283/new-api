@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Loader2, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -55,6 +55,7 @@ export function ChangePasswordDialog({
   currentEmail,
 }: ChangePasswordDialogProps) {
   const { t } = useTranslation()
+  const toastError = useCallback((message: string) => toast.error(t(message)), [t])
   const [loading, setLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [formData, setFormData] = useState({
@@ -75,6 +76,7 @@ export function ChangePasswordDialog({
       verificationCaptcha.enabled
         ? (await aliyunCaptchaRef.current?.execute()) || ''
         : '',
+    onCodeSent: () => aliyunCaptchaRef.current?.refresh(),
   })
 
   const hasEmail = Boolean(currentEmail)
@@ -155,6 +157,7 @@ export function ChangePasswordDialog({
   const handleSendVerificationCode = async () => {
     if (!currentEmail) return
     await sendCode(currentEmail)
+    aliyunCaptchaRef.current?.refresh()
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -307,7 +310,7 @@ export function ChangePasswordDialog({
             targetButtonId='send-code-button-change-pwd'
             language={verificationCaptcha.language}
             className='mt-2'
-            onError={(message) => toast.error(t(message))}
+            onError={toastError}
           />
         )}
       </form>

@@ -30,7 +30,7 @@ import (
 // 根据「阿里验证码接入文档.md」的说明，ESA 验证码的工作流程为：
 //
 //  1. 前端 SDK 弹出验证码 → 用户完成验证 → success 回调返回 captchaVerifyParam
-//  2. 前端将 captchaVerifyParam 随业务请求发送（URI 参数或 Header）
+//  2. 前端将 captchaVerifyParam 随业务请求发送（统一使用 URL 查询参数）
 //  3. ESA 边缘节点拦截请求，验签 captchaVerifyParam
 //  4. 验签通过后 ESA 将请求转发到后端，并在**响应头**中注入 X-Captcha-Verify-Code: T001
 //  5. 前端从响应头读取 X-Captcha-Verify-Code 判断验签结果
@@ -49,7 +49,7 @@ import (
 //  普通模式（ESAStrictModeEnabled=false，ESACaptchaEnabled=true）：
 //   - 生产环境：ESA 边缘节点透明验签，请求到达后端时 captcha_verify_param 已被验证
 //   - 本地/无 ESA 边缘：仅校验 captcha_verify_param 非空（前端 SDK 弹出验证码已确保真人操作）
-//   - 文档支持两种传递方式：URI 参数 或 Header 值
+//   - captcha_verify_param 统一通过 URL 查询参数传递
 func ESACaptchaCheck(scene string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !common.ESACaptchaEnabled {
@@ -78,14 +78,11 @@ func ESACaptchaCheck(scene string) gin.HandlerFunc {
 		}
 
 		// --- 普通模式：前端 ESA SDK 已完成人机验证 ---
-		// 验证通过后前端获得 captcha_verify_param，随请求发送到后端。
+		// 验证通过后前端获得 captcha_verify_param，作为 URL 查询参数发送到后端。
 		// 生产环境中 ESA 边缘节点透明验签并在响应头中注入 X-Captcha-Verify-Code: T001。
 		// 本地/无 ESA 边缘时，仅校验参数非空（前端 SDK 弹出验证码已确保真人操作）。
-		// 文档支持两种传递方式：URI 参数 或 Header 值
+		// captcha_verify_param 统一通过 URL 查询参数传递，不再从请求头读取。
 		captchaVerifyParam := c.Query("captcha_verify_param")
-		if captchaVerifyParam == "" {
-			captchaVerifyParam = c.GetHeader("captcha-verify-param")
-		}
 		if captchaVerifyParam == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

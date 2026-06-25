@@ -72,23 +72,6 @@ func GetStatus(c *gin.Context) {
 		"turnstile_check":             common.TurnstileCheckEnabled,
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"esa_captcha_enabled":         common.ESACaptchaEnabled,
-		"esa_strict_mode_enabled":     common.ESAStrictModeEnabled,
-		"esa_region":                  common.ESARegion,
-		"esa_prefix":                  common.ESAPrefix,
-		"esa_captcha_scenes": gin.H{
-			"login":          common.ESACaptchaLoginSceneId,
-			"reset_password": common.ESACaptchaResetPasswordSceneId,
-			"delete_account": common.ESACaptchaDeleteAccountSceneId,
-			"checkin":        common.ESACaptchaCheckinSceneId,
-			"verification":   common.ESACaptchaVerificationSceneId,
-		},
-		"esa_captcha_types": gin.H{
-			"login":          common.ESACaptchaLoginCaptchaType,
-			"reset_password": common.ESACaptchaResetPasswordCaptchaType,
-			"delete_account": common.ESACaptchaDeleteAccountCaptchaType,
-			"checkin":        common.ESACaptchaCheckinCaptchaType,
-			"verification":   common.ESACaptchaVerificationCaptchaType,
-		},
 		"docs_link":      operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit": common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type

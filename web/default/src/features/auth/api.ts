@@ -43,7 +43,9 @@ export async function login(payload: LoginPayload) {
       password: payload.password,
     },
     {
-      params: { captcha_verify_param: payload.captcha_verify_param ?? '' },
+      params: payload.captcha_verify_param
+        ? { captcha_verify_param: payload.captcha_verify_param }
+        : {},
     }
   )
   return res.data
@@ -71,7 +73,10 @@ export async function sendPasswordResetEmail(
   captchaVerifyParam?: string
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
-    params: { email, captcha_verify_param: captchaVerifyParam },
+    params: {
+      email,
+      ...(captchaVerifyParam ? { captcha_verify_param: captchaVerifyParam } : {}),
+    },
   })
   return res.data
 }
@@ -117,7 +122,10 @@ export async function sendEmailVerification(
   captchaVerifyParam?: string
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
-    params: { email, captcha_verify_param: captchaVerifyParam },
+    params: {
+      email,
+      ...(captchaVerifyParam ? { captcha_verify_param: captchaVerifyParam } : {}),
+    },
   })
   return res.data
 }

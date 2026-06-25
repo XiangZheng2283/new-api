@@ -111,12 +111,8 @@ export interface SystemStatus {
     WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
     turnstile_site_key?: string
+    /** ESA 验证码全局开关（仅保留此字段，其他配置由前端硬编码） */
     esa_captcha_enabled?: boolean
-    esa_strict_mode_enabled?: boolean
-    esa_region?: string
-    esa_prefix?: string
-    esa_captcha_scenes?: Record<string, string>
-    esa_captcha_types?: Record<string, string>
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -160,12 +156,8 @@ export interface SystemStatus {
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
+  /** ESA 验证码全局开关（仅保留此字段，其他配置由前端硬编码） */
   esa_captcha_enabled?: boolean
-  esa_strict_mode_enabled?: boolean
-  esa_region?: string
-  esa_prefix?: string
-  esa_captcha_scenes?: Record<string, string>
-  esa_captcha_types?: Record<string, string>
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean

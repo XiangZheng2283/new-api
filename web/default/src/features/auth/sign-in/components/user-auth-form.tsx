@@ -61,6 +61,7 @@ export function UserAuthForm({
 }: AuthFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
@@ -138,6 +139,8 @@ export function UserAuthForm({
   }, [status])
 
   async function onSubmit(data: z.infer<typeof loginFormSchema>) {
+    if (isLoading || isVerifying) return
+
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
       return
@@ -147,7 +150,9 @@ export function UserAuthForm({
       // 先执行验证码，再设置 loading — 避免按钮 disabled 干扰 SDK button 绑定
       let captchaVerifyParam = ''
       if (loginCaptcha.enabled) {
+        setIsVerifying(true)
         captchaVerifyParam = await aliyunCaptchaRef.current?.execute() ?? ''
+        setIsVerifying(false)
         if (!captchaVerifyParam) {
           // 验证码未完成（可能是用户取消或 SDK 初始化失败），不发送请求
           return
@@ -173,6 +178,7 @@ export function UserAuthForm({
       aliyunCaptchaRef.current?.refresh()
     } catch (_error) {
       // Errors are handled by global interceptor
+      setIsVerifying(false)
       aliyunCaptchaRef.current?.refresh()
     } finally {
       setIsLoading(false)
@@ -388,6 +394,7 @@ export function UserAuthForm({
                 captchaType={loginCaptcha.captchaType}
                 targetButtonId='sign-in-button'
                 language={loginCaptcha.language}
+                onError={(message) => toast.error(message)}
               />
             )}
 
@@ -398,16 +405,21 @@ export function UserAuthForm({
               id='sign-in-button'
               type={loginCaptcha.enabled ? 'button' : 'submit'}
               className='mt-2 w-full justify-center gap-2'
-              disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+              disabled={isLoading || isVerifying || (requiresLegalConsent && !agreedToLegal)}
               {...(loginCaptcha.enabled ? {
                 onClick: async () => {
+                  // 先检查协议同意，防止未勾选时 SDK button 绑定触发无感验证
+                  if (requiresLegalConsent && !agreedToLegal) {
+                    toast.error(legalConsentErrorMessage)
+                    return
+                  }
                   const isValid = await form.trigger()
                   if (isValid) onSubmit(form.getValues())
                 }
               } : {})}
             >
-              {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-              {t('Sign in')}
+              {isLoading || isVerifying ? <Loader2 className='animate-spin' /> : <LogIn />}
+              {isLoading ? t('Signing in...') : isVerifying ? t('Verifying...') : t('Sign in')}
             </Button>
           </>
         )}
