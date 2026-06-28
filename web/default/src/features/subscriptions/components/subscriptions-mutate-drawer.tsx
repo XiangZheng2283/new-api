@@ -66,7 +66,7 @@ import {
   createWaffoPancakeSubscriptionProduct,
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getCurrencyDisplay, getCurrencyLabel, formatCurrencyFromUSD } from '@/lib/currency'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
@@ -331,9 +331,7 @@ export function SubscriptionsMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t(
-                          'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
-                        )}
+                        {t('Amount in {{currency}} the user pays to purchase this plan; the actual currency depends on the payment gateway.', { currency: currencyLabel })}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

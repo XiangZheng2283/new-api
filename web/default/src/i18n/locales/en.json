@@ -1122,7 +1122,7 @@
     "Current:": "Current:",
     "Custom": "Custom",
     "Custom (seconds)": "Custom (seconds)",
-    "Custom Amount": "Custom Amount",
+    "Custom Amount (USD)": "Custom Amount (USD)",
     "Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.": "Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.",
     "Custom API base URL. Leave empty to use provider default.": "Custom API base URL. Leave empty to use provider default.",
     "Custom Currency": "Custom Currency",

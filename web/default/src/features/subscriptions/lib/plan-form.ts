@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+import { getCurrencyDisplay } from '@/lib/currency'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 export function getPlanFormSchema(t: TFunction) {
@@ -75,11 +76,27 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   waffo_pancake_product_id: '',
 }
 
+/** Convert a USD amount to the current display currency using the exchange rate. */
+function usdToLocalPrice(usd: number): number {
+  const { meta } = getCurrencyDisplay()
+  if (meta.kind === 'tokens') return usd
+  const rate = meta.kind === 'currency' ? meta.exchangeRate : 1
+  return usd * rate
+}
+
+/** Convert a local-currency amount back to USD using the exchange rate. */
+function localPriceToUsd(local: number): number {
+  const { meta } = getCurrencyDisplay()
+  if (meta.kind === 'tokens') return local
+  const rate = meta.kind === 'currency' ? meta.exchangeRate : 1
+  return rate > 0 ? local / rate : local
+}
+
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
   return {
     title: plan.title || '',
     subtitle: plan.subtitle || '',
-    price_amount: Number(plan.price_amount || 0),
+    price_amount: usdToLocalPrice(Number(plan.price_amount || 0)),
     duration_unit: plan.duration_unit || 'month',
     duration_value: Number(plan.duration_value || 1),
     custom_seconds: Number(plan.custom_seconds || 0),
@@ -103,7 +120,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
   return {
     plan: {
       ...values,
-      price_amount: Number(values.price_amount || 0),
+      price_amount: localPriceToUsd(Number(values.price_amount || 0)),
       currency: 'USD',
       duration_value: Number(values.duration_value || 0),
       custom_seconds: Number(values.custom_seconds || 0),
